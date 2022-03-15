@@ -2,11 +2,12 @@ import torch
 import numpy as np
 from torch.nn import Module, Sequential, Identity
 from torch.nn import ZeroPad2d
-from PyTorchAberrations.aberration_layers import ComplexDeformation
-from PyTorchAberrations.aberration_layers import ComplexZernike, ComplexScaling
-from PyTorchAberrations.aberration_functions import crop_center, complex_fftshift
-from PyTorchAberrations.aberration_functions import complex_ifftshift, conjugate, normalize
-from PyTorchAberrations.aberration_functions import complex_fft, complex_ifft
+from .aberration_layers import ComplexDeformation
+from .aberration_layers import ComplexZernike, ComplexScaling
+from .aberration_functions import crop_center, complex_fftshift
+from .aberration_functions import complex_ifftshift
+from .aberration_functions import complex_fft, complex_ifft
+import torch.fft as fft
 
 class AberrationModes(torch.nn.Module):
     '''
@@ -21,16 +22,36 @@ class AberrationModes(torch.nn.Module):
                      list_zernike_direct = list(range(3)),
                      deformation = 'single'):
         super(AberrationModes, self).__init__()
+
+        
+        if len(np.array(list_zernike_ft).shape) == 2:
+            list_zernike_ft_in = list_zernike_ft
+            list_zernike_ft_out = list_zernike_ft
+        elif len(np.array(list_zernike_ft).shape) == 2:
+            list_zernike_ft_in = list_zernike_ft[0]
+            list_zernike_ft_out = list_zernike_ft[1]
+        else:
+            raise ValueError('Zernike coefficients can only have 1 or 2 dims')
+        if len(np.array(list_zernike_direct).shape) == 2:
+            list_zernike_direct_in = list_zernike_ft
+            list_zernike_direct_out = list_zernike_ft
+        elif len(np.array(list_zernike_direct).shape) == 2:
+            list_zernike_direct_in = list_zernike_direct[0]
+            list_zernike_direct_out = list_zernike_direct[1]
+        else:
+            raise ValueError('Zernike coefficients can only have 1 or 2 dims')
+        
+
         self.abberation_output = Aberration(onpoints,
-                                            list_zernike_ft = list_zernike_ft,
-                                            list_zernike_direct = list_zernike_direct, 
+                                            list_zernike_ft = list_zernike_ft_out,
+                                            list_zernike_direct = list_zernike_direct_out, 
                                             padding_coeff = padding_coeff,
                                             deformation = deformation)
         self.abberation_input = Aberration(inpoints,
-                                            list_zernike_ft = list_zernike_ft,
-                                            list_zernike_direct = list_zernike_direct, 
+                                            list_zernike_ft = list_zernike_ft_in,
+                                            list_zernike_direct = list_zernike_direct_in, 
                                             padding_coeff = padding_coeff,
-                                            deformation = deformation)
+                                            deformation = deformation)    
         self.inpoints = inpoints
         self.onpoints = onpoints
 
@@ -47,7 +68,7 @@ class AberrationModes(torch.nn.Module):
 
         return output_modes, input_modes
 
-    
+
 class Aberration(torch.nn.Module):
     '''
     Model that apply aberrations (direct and Fourier plane) and a global scaling
@@ -99,9 +120,12 @@ class Aberration(torch.nn.Module):
         #self.deformation(input)
         
         # to Fourier domain
-        input = complex_ifftshift(input)
-        input = complex_fft(input, 2)
-        input = complex_fftshift(input)
+        input = fft.ifftshift(input, dim=(-2,-1))
+        input = fft.fft2(input)
+        input = fft.fftshift(input, dim=(-2,-1))
+        # input = complex_ifftshift(input)
+        # input = complex_fft(input, 2)
+        # input = complex_fftshift(input)
 #         input = torch.view_as_real(complex_fftshift(input))
 
         # Zernike layers in the Fourier plane
@@ -109,9 +133,12 @@ class Aberration(torch.nn.Module):
 
         # to direct domain
 #         input = torch.view_as_complex(input)
-        input = complex_ifftshift(input)
-        input = complex_ifft(input, 2)
-        input = complex_fftshift(input)
+        input = fft.ifftshift(input, dim=(-2,-1))
+        input = fft.ifft2(input)
+        input = fft.fftshift(input, dim=(-2,-1))
+        # input = complex_ifftshift(input)
+        # input = complex_ifft(input, 2)
+        # input = complex_fftshift(input)
 #         input = torch.view_as_real(input)
          
         # Zernike layers in the direct plane
