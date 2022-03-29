@@ -18,10 +18,10 @@ class ComplexZernikeFunction(torch.autograd.Function):
     def forward(ctx, input, alpha, j):
         
         
-        nx = torch.arange(0,1,1./input.shape[1], dtype = torch.float32)
-        ny = torch.arange(0,1,1./input.shape[2], dtype = torch.float32)
+        nx = torch.arange(0,2,2./input.shape[1], dtype = torch.float32)
+        ny = torch.arange(0,2,2./input.shape[2], dtype = torch.float32)
 
-        X0, Y0 = 0.5+0.5/input.shape[1], 0.5+0.5/input.shape[2]
+        X0, Y0 = 1.+1./input.shape[1], 1.+1./input.shape[2]
         X,Y = torch.meshgrid(nx,ny)
         X = X.to(input.device)-X0
         Y = Y.to(input.device)-Y0
@@ -30,48 +30,48 @@ class ComplexZernikeFunction(torch.autograd.Function):
         if j == 0:
             F = torch.ones_like(X)
         elif j == 1:
-            F = X
+            F = 2*X
         elif j == 2:
-            F = Y
+            F = 2*Y
         elif j == 3:
             # Oblique astigmatism
-            F = 2.*X.mul(Y)
+            F = 2.*(6.**(1/2))*X.mul(Y)
         elif j == 4:
             # Defocus
-            F = X**2+Y**2
+            F = (3.**(1/2))*(2.*(X**2+Y**2)-1)
         elif j == 5:
             # Vertical astigmatism
-            F = X**2-Y**2
+            F = (6.**(1/2))*(X**2-Y**2)
         else:
             R = torch.sqrt(X**2+Y**2)
             THETA = torch.atan2(Y, X)
             if j == 6:
                 # Vertical trefoil 
-                F = torch.mul(R**3, torch.sin(3.*THETA))
+                F = (8.**(1/2))*torch.mul(R**3, torch.sin(3.*THETA))
             elif j == 7:
                 # Vertical coma
-                F = torch.mul(3.*R**3,torch.sin(3.*THETA))
+                F = (8.**(1/2))*torch.mul(3.*R**3-2.*R,torch.sin(3.*THETA))
             elif j == 8:
                 # Horizontal coma 
-                F = torch.mul(3.*R**3,torch.cos(3.*THETA))
+                F = (8.**(1/2))*torch.mul(3.*R**3-2.*R,torch.cos(3.*THETA))
             elif j == 9:
                 # Oblique trefoil 
-                F = torch.mul(R**3, torch.cos(3.*THETA))
+                F = (8.**(1/2))*torch.mul(R**3, torch.cos(3.*THETA))
             elif j == 10:
                 # Oblique quadrafoil 
-                F = 2.*torch.mul(R**4, torch.sin(4.*THETA))
+                F = (10.**(1/2))*torch.mul(R**4, torch.sin(4.*THETA))
             elif j == 11:
                 # Oblique secondary astigmatism 
-                F = 2.*torch.mul(4.*R**4-3.*R**2, torch.sin(2.*THETA))
+                F = (10.**(1/2))*torch.mul(4.*R**4-3.*R**2, torch.sin(2.*THETA))
             elif j == 12:
                 # Primary spherical
-                F = 6.*R**4-6.*R**2 + torch.ones_like(R)
+                F = (5.**(1/2))*(6.*R**4-6.*R**2 + torch.ones_like(R))
             elif j == 13:
                 # Vertical secondary astigmatism 
-                F = 2.*torch.mul(4.*R**4-3.*R**2, torch.cos(2.*THETA))
+                F = (10.**(1/2))*torch.mul(4.*R**4-3.*R**2, torch.cos(2.*THETA))
             elif j == 14:
                 # Vertical quadrafoil 
-                F = 2.*torch.mul(R**4, torch.cos(4.*THETA))
+                F = (10.**(1/2))*torch.mul(R**4, torch.cos(4.*THETA))
             else:
                 raise
         
@@ -204,3 +204,4 @@ class ComplexDeformation(Module):
                                  input.size())                 
 
             return torch.view_as_complex(torch.nn.functional.grid_sample(input, grid, align_corners=True).permute((0,2,3,1)))
+
