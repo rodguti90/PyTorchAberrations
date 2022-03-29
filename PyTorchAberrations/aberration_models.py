@@ -2,7 +2,7 @@ import torch
 import numpy as np
 from torch.nn import Module, Sequential, Identity
 from torch.nn import ZeroPad2d
-from .aberration_layers import ComplexDeformation
+from .aberration_layers import ComplexDeformation#, CorrectIllumination
 from .aberration_layers import ComplexZernike, ComplexScaling
 from .aberration_functions import crop_center, complex_fftshift
 from .aberration_functions import complex_ifftshift
@@ -24,18 +24,19 @@ class AberrationModes(torch.nn.Module):
         super(AberrationModes, self).__init__()
 
         
-        if len(np.array(list_zernike_ft).shape) == 2:
+        if type(list_zernike_ft[0]) is int:
             list_zernike_ft_in = list_zernike_ft
             list_zernike_ft_out = list_zernike_ft
-        elif len(np.array(list_zernike_ft).shape) == 2:
+        elif type(list_zernike_ft[0]) is list:
             list_zernike_ft_in = list_zernike_ft[0]
             list_zernike_ft_out = list_zernike_ft[1]
         else:
             raise ValueError('Zernike coefficients can only have 1 or 2 dims')
-        if len(np.array(list_zernike_direct).shape) == 2:
-            list_zernike_direct_in = list_zernike_ft
-            list_zernike_direct_out = list_zernike_ft
-        elif len(np.array(list_zernike_direct).shape) == 2:
+
+        if type(list_zernike_direct[0]) is int:
+            list_zernike_direct_in = list_zernike_direct
+            list_zernike_direct_out = list_zernike_direct
+        elif type(list_zernike_direct[0]) is list:
             list_zernike_direct_in = list_zernike_direct[0]
             list_zernike_direct_out = list_zernike_direct[1]
         else:
@@ -80,6 +81,7 @@ class Aberration(torch.nn.Module):
                  list_zernike_direct,
                  padding_coeff = 0., 
                  deformation = 'single',
+                #  correct_illum = False,
                  features = None):
         # Here we define the type of Model we want to be using, the number of polynoms and if we want to implement a deformation.
         super(Aberration, self).__init__()
@@ -96,7 +98,6 @@ class Aberration(torch.nn.Module):
         # (requires to crop after IFFT)
         padding = int(padding_coeff*self.nxy)
         self.pad = ZeroPad2d(padding)
-        
         # scaling x, y
         if deformation == 'single':
             self.deformation = ComplexDeformation()
@@ -104,7 +105,7 @@ class Aberration(torch.nn.Module):
             self.deformation = ComplexScaling()
         else:
             self.deformation = Identity()
-        
+
         self.zernike_ft = Sequential(*(ComplexZernike(j=j + 1) for j in list_zernike_ft))
         self.zernike_direct = Sequential(*(ComplexZernike(j=j + 1) for j in list_zernike_direct))
        
@@ -146,6 +147,9 @@ class Aberration(torch.nn.Module):
         
         # Crop at the center (because of coeff) 
         input = crop_center(input,self.nxy)
+
+        # input = self.correct_illum(input)
+            
 
         return torch.view_as_real(input)
       
